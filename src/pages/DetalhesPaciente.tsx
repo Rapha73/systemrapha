@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import type { Tables } from '../types/database.types';
 
-type DetailTabType = 'clinico' | 'consultas' | 'plano';
+type DetailTabType = 'clinico' | 'consultas' | 'plano' | 'ia';
 
 const DetalhesPaciente: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +39,204 @@ const DetalhesPaciente: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTabType>(initialTab);
+
+  // Estados específicos para o Assistente de IA
+  const [diagnosis, setDiagnosis] = useState<string | null>(() => {
+    return localStorage.getItem(`diagnosis_${id}`) || null;
+  });
+  const [generating, setGenerating] = useState(false);
+  const [errorIa, setErrorIa] = useState<string | null>(null);
+
+  // Carrega chave API do LocalStorage ou do .env
+  const [apiKey, setApiKey] = useState<string>(() => {
+    const local = localStorage.getItem('gemini_api_key') || '';
+    const env = import.meta.env.VITE_GEMINI_API_KEY || '';
+    return local || env;
+  });
+  const [tempKey, setTempKey] = useState<string>(localStorage.getItem('gemini_api_key') || '');
+
+  const salvarApiKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('gemini_api_key', tempKey);
+    setApiKey(tempKey);
+    setErrorIa(null);
+  };
+
+  const removerApiKey = () => {
+    localStorage.removeItem('gemini_api_key');
+    setTempKey('');
+    setApiKey(import.meta.env.VITE_GEMINI_API_KEY || '');
+    setErrorIa(null);
+  };
+
+  const copiarDiagnostico = () => {
+    if (diagnosis) {
+      navigator.clipboard.writeText(diagnosis);
+      alert('Diagnóstico copiado para a área de transferência!');
+    }
+  };
+
+  // Helper para interpretar negritos simples (**texto**) dentro do texto
+  const parseInlineStyles = (text: string) => {
+    const parts = text.split(/\*\*([^*]+)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i}>{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  // Conversor simples de Markdown em Elementos React
+  const renderMarkdown = (text: string) => {
+    const lines = text.split('\n');
+    let inList = false;
+    const htmlElements: React.ReactNode[] = [];
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+
+      if (trimmed === '') {
+        if (inList) inList = false;
+        return;
+      }
+
+      // Título H2
+      if (trimmed.startsWith('## ')) {
+        if (inList) inList = false;
+        const cleanText = trimmed.replace('## ', '');
+        htmlElements.push(<h2 key={`h2-${index}`}>{parseInlineStyles(cleanText)}</h2>);
+        return;
+      }
+
+      // Título H3
+      if (trimmed.startsWith('### ')) {
+        if (inList) inList = false;
+        const cleanText = trimmed.replace('### ', '');
+        htmlElements.push(<h3 key={`h3-${index}`}>{parseInlineStyles(cleanText)}</h3>);
+        return;
+      }
+
+      // Listas
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        const cleanText = trimmed.substring(2);
+        inList = true;
+        htmlElements.push(
+          <ul key={`ul-${index}`} style={{ margin: '0 0 8px 0' }}>
+            <li>{parseInlineStyles(cleanText)}</li>
+          </ul>
+        );
+        return;
+      }
+
+      // Citação
+      if (trimmed.startsWith('> ')) {
+        if (inList) inList = false;
+        const cleanText = trimmed.substring(2);
+        htmlElements.push(<blockquote key={`quote-${index}`}>{parseInlineStyles(cleanText)}</blockquote>);
+        return;
+      }
+
+      // Parágrafo padrão
+      if (inList) inList = false;
+      htmlElements.push(<p key={`p-${index}`}>{parseInlineStyles(trimmed)}</p>);
+    });
+
+    return htmlElements;
+  };
+
+  const gerarDiagnostico = async () => {
+    if (!patient || !apiKey) return;
+    try {
+      setGenerating(true);
+      setErrorIa(null);
+
+      const idade = calcularIdade(patient.data_nascimento);
+      const imc = calcularIMC(patient.peso_inicial, patient.altura);
+      const patologiasStr = patient.patologias && (patient.patologias as string[]).length > 0 ? (patient.patologias as string[]).join(', ') : 'Nenhuma';
+      const restricoesStr = patient.restricoes_alimentares && (patient.restricoes_alimentares as string[]).length > 0 ? (patient.restricoes_alimentares as string[]).join(', ') : 'Nenhuma';
+      const alergiasStr = patient.alergias && (patient.alergias as string[]).length > 0 ? (patient.alergias as string[]).join(', ') : 'Nenhuma';
+      const objetivosStr = patient.objetivos && (patient.objetivos as string[]).length > 0 ? (patient.objetivos as string[]).join(', ') : 'Não informado';
+      const atividadeFisicaStr = patient.atividade_fisica ? `Sim (${patient.atividade_fisica_descricao || 'Sem descrição'})` : 'Sedentário';
+
+      let consultasTexto = 'Histórico de consultas:\n';
+      if (consultas.length > 0) {
+        consultas.forEach((c) => {
+          consultasTexto += `- Data: ${formatarDataBR(c.data_consulta)} | Peso: ${c.peso || '--'} kg | % Gordura: ${c.percentual_gordura || '--'}% | Cintura: ${c.cintura || '--'} cm | Notas: ${c.observacoes || 'Nenhuma'}\n`;
+        });
+      } else {
+        consultasTexto += 'Nenhuma consulta registrada ainda.\n';
+      }
+
+      const prompt = `Você é um assistente de inteligência artificial de nutrição altamente qualificado e experiente.
+Analise os dados clínicos e antropométricos abaixo e forneça um diagnóstico nutricional estruturado, contendo orientações gerais, identificação de riscos alimentares, sugestões de hábitos e um plano de ação preliminar.
+
+DADOS DO PACIENTE:
+- Nome: ${patient.nome}
+- Idade: ${idade}
+- Sexo: ${patient.sexo || 'Não informado'}
+- Peso Inicial: ${patient.peso_inicial || '--'} kg
+- Altura: ${patient.altura || '--'} m
+- IMC Inicial: ${imc ? `${imc.valor} (${imc.classificacao})` : 'Não calculado'}
+- Nível de Atividade Física: ${patient.nivel_atividade || 'Não informado'}
+- Hábitos: ${atividadeFisicaStr} | Água/dia: ${patient.litros_agua || '--'} L | Refeições/dia: ${patient.refeicoes_por_dia || '--'} | Horário de sono: ${patient.horario_acorda || '--'} às ${patient.horario_dorme || '--'}
+- Objetivos Clínicos: ${objetivosStr}
+- Detalhe do Objetivo: ${patient.objetivo_texto || 'Não informado'}
+- Patologias/Doenças: ${patologiasStr}
+- Restrições Alimentares: ${restricoesStr}
+- Alergias: ${alergiasStr}
+- Medicamentos de Uso Contínuo: ${patient.medicamentos || 'Nenhum'}
+- Suplementos: ${patient.suplementos || 'Nenhum'}
+- Observações da Anamnese: ${patient.observacoes || 'Nenhuma'}
+
+${consultasTexto}
+
+Instruções para o diagnóstico:
+1. Escreva em Português do Brasil de forma clara, profissional e acolhedora.
+2. Divida o text obrigatoriamente usando os seguintes títulos em Markdown:
+   - ## Resumo Clínico do Paciente
+   - ## Análise de Composição & Evolução Corporal
+   - ## Alertas e Mapeamento de Riscos
+   - ## Diretrizes Alimentares Recomendadas
+   - ## Plano de Ação Sugerido
+3. Use tópicos claros e negrito para destacar informações essenciais.
+4. Evite prescrever remédios ou dosagens de suplementos, limite-se a orientações nutricionais e de hábitos.
+5. Escreva de maneira objetiva e que sirva como um apoio profissional ao nutricionista responsável.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Erro na API do Gemini: Código ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Nenhuma resposta gerada pela IA.');
+      }
+
+      setDiagnosis(text);
+      localStorage.setItem(`diagnosis_${id}`, text);
+
+    } catch (err: any) {
+      console.error('Erro na geração do diagnóstico por IA:', err);
+      setErrorIa(err.message || 'Erro inesperado ao gerar análise da IA.');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   useEffect(() => {
     async function loadPatientDetails() {
@@ -345,6 +543,14 @@ const DetalhesPaciente: React.FC = () => {
               className={`details-tab-btn ${activeTab === 'plano' ? 'active' : ''}`}
             >
               Plano Alimentar
+            </button>
+            <button 
+              onClick={() => setActiveTab('ia')}
+              className={`details-tab-btn ${activeTab === 'ia' ? 'active' : ''}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Sparkles size={16} />
+              Assistente de IA
             </button>
           </div>
 
@@ -781,6 +987,123 @@ const DetalhesPaciente: React.FC = () => {
                 <Sparkles size={16} />
                 Montar Plano Alimentar
               </button>
+            </div>
+          )}
+
+          {/* ABA 4: ASSISTENTE DE IA */}
+          {activeTab === 'ia' && (
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="ia-assistant-card">
+                <div className="ia-title-section">
+                  <div className="ia-glow-icon">
+                    <Sparkles size={22} />
+                  </div>
+                  <h3>Assistente de Diagnóstico Clínico</h3>
+                </div>
+                
+                <p className="ia-card-description">
+                  Esta inteligência artificial analisa todos os dados da ficha clínica, anamnese e histórico de evolução do paciente para gerar um diagnóstico preliminar estruturado, avaliar hábitos, mapear riscos de saúde e recomendar diretrizes alimentares de apoio.
+                </p>
+
+                {/* Bloco de Chave de API */}
+                {!import.meta.env.VITE_GEMINI_API_KEY && (
+                  <div className="ia-api-key-container">
+                    <h4 className="ia-api-key-header">Chave de API do Gemini</h4>
+                    <p className="ia-api-key-help">
+                      Para utilizar o assistente de IA, é necessário configurar a sua chave de API do Gemini. 
+                      A chave será guardada localmente de forma segura apenas no seu navegador. 
+                      Você pode obter uma chave de forma 100% gratuita no{' '}
+                      <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">
+                        Google AI Studio
+                      </a>.
+                    </p>
+                    
+                    <form onSubmit={salvarApiKey} className="ia-input-wrapper">
+                      <input 
+                        type="password"
+                        placeholder={apiKey ? "Chave de API configurada. Cole uma nova chave se quiser alterar..." : "Insira sua API Key do Gemini aqui..."}
+                        value={tempKey}
+                        onChange={(e) => setTempKey(e.target.value)}
+                        className="ia-input-key"
+                      />
+                      <button type="submit" className="ia-btn-key-save" disabled={!tempKey}>
+                        Salvar Chave
+                      </button>
+                      {apiKey && (
+                        <button type="button" onClick={removerApiKey} className="ia-btn-key-remove">
+                          Excluir
+                        </button>
+                      )}
+                    </form>
+                  </div>
+                )}
+
+                {/* Estado sem API Key */}
+                {!apiKey && !import.meta.env.VITE_GEMINI_API_KEY ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                    Por favor, insira e salve sua Chave de API acima para ativar a geração do diagnóstico.
+                  </div>
+                ) : (
+                  /* Estado de API Key configurada */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <button 
+                        onClick={gerarDiagnostico} 
+                        className="btn-primary" 
+                        disabled={generating}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        {generating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                        {diagnosis ? 'Refazer Diagnóstico com IA' : 'Gerar Diagnóstico Clínico'}
+                      </button>
+                      {import.meta.env.VITE_GEMINI_API_KEY && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>
+                          ✓ Conectado via Configuração do Sistema (.env)
+                        </span>
+                      )}
+                      {!import.meta.env.VITE_GEMINI_API_KEY && apiKey && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>
+                          ✓ Conectado via Chave Salva no Navegador
+                        </span>
+                      )}
+                    </div>
+
+                    {errorIa && (
+                      <div className="error-box" style={{ marginTop: '10px' }}>
+                        <span>{errorIa}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Loader durante a geração */}
+                {generating && (
+                  <div className="ia-loading-container animate-fade-in">
+                    <div className="ia-pulse-circle">
+                      <Sparkles size={32} className="animate-spin" style={{ animationDuration: '3s' }} />
+                    </div>
+                    <div className="ia-loading-text">Analisando Anamnese e Prontuários...</div>
+                    <div className="ia-loading-subtext">
+                      Nosso assistente está cruzando dados corporais, patologias e hábitos para estruturar as diretrizes. Isso pode levar alguns segundos.
+                    </div>
+                  </div>
+                )}
+
+                {/* Exibição da resposta */}
+                {!generating && diagnosis && (
+                  <div className="ia-response-card animate-fade-in">
+                    <div className="ia-response-actions">
+                      <button onClick={copiarDiagnostico} className="btn-secondary">
+                        Copiar Relatório
+                      </button>
+                    </div>
+                    <div className="diagnosis-markdown">
+                      {renderMarkdown(diagnosis)}
+                    </div>
+                  </div>
+                )}
+
+              </div>
             </div>
           )}
 
