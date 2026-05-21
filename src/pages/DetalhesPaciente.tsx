@@ -6,24 +6,27 @@ import {
   ArrowLeft, 
   Phone, 
   Mail, 
-  User, 
-  Heart, 
-  Activity, 
-  ShieldAlert, 
   Clock, 
-  Award, 
   Plus, 
   Loader2, 
   Sparkles,
   Apple,
   TrendingDown,
   TrendingUp,
-  Calendar,
-  Edit
+  Save,
+  Check,
+  X
 } from 'lucide-react';
 import type { Tables } from '../types/database.types';
 
 type DetailTabType = 'clinico' | 'consultas' | 'plano' | 'ia';
+type SubTabType = 'pessoal' | 'clinico' | 'habitos';
+
+const OBJETIVOS_OPCOES = ['Emagrecer', 'Ganhar massa', 'Controlar diabetes', 'Saúde geral', 'Performance esportiva', 'Reeducação alimentar'];
+const NIVEL_ATIVIDADE_OPCOES = ['Sedentário', 'Levemente ativo', 'Moderadamente ativo', 'Muito ativo', 'Extremamente ativo'];
+const PATOLOGIAS_OPCOES = ['Nenhum', 'Diabetes', 'Hipertensão', 'Hipotireoidismo', 'Hipertireoidismo', 'Síndrome do ovário policístico', 'Doença celíaca', 'Colesterol alto'];
+const RESTRICOES_OPCOES = ['Nenhum', 'Lactose', 'Glúten', 'Açúcar', 'Carne vermelha', 'Frutos do mar'];
+const ALERGIAS_OPCOES = ['Nenhum', 'Amendoim', 'Leite', 'Ovo', 'Soja', 'Trigo', 'Frutos do mar'];
 
 const DetalhesPaciente: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +34,6 @@ const DetalhesPaciente: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Inicializa a aba com base no state passado pelo redirecionamento
   const initialTab = (location.state as { tab?: DetailTabType })?.tab || 'clinico';
 
   const [patient, setPatient] = useState<Tables<'pacientes'> | null>(null);
@@ -39,21 +41,394 @@ const DetalhesPaciente: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTabType>(initialTab);
+  const [activeSubTab, setActiveSubTab] = useState<SubTabType>('pessoal');
 
-  // Estados específicos para o Assistente de IA
-  const [diagnosis, setDiagnosis] = useState<string | null>(() => {
-    return localStorage.getItem(`diagnosis_${id}`) || null;
-  });
+  // Estados para Edição Inline (Ficha Clínica)
+  const [nome, setNome] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
+  const [sexo, setSexo] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [email, setEmail] = useState('');
+  const [pesoInicial, setPesoInicial] = useState('');
+  const [altura, setAltura] = useState(''); // cm no input
+  const [objetivos, setObjetivos] = useState<string[]>([]);
+  const [objetivoTexto, setObjetivoTexto] = useState('');
+  const [nivelAtividade, setNivelAtividade] = useState('');
+  const [patologias, setPatologias] = useState<string[]>([]);
+  const [restricoesAlimentares, setRestricoesAlimentares] = useState<string[]>([]);
+  const [alergias, setAlergias] = useState<string[]>([]);
+  const [medicamentos, setMedicamentos] = useState('');
+  const [suplementos, setSuplementos] = useState('');
+  const [refeicoesPorDia, setRefeicoesPorDia] = useState('');
+  const [horarioAcorda, setHorarioAcorda] = useState('');
+  const [horarioDorme, setHorarioDorme] = useState('');
+  const [litrosAgua, setLitrosAgua] = useState('');
+  const [atividadeFisica, setAtividadeFisica] = useState(false);
+  const [atividadeFisicaDescricao, setAtividadeFisicaDescricao] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+
+  const [salvandoDados, setSalvandoDados] = useState(false);
+  const [sucessoDados, setSucessoDados] = useState(false);
+
+  // Estados para o Modal de Nova Consulta
+  const [showModalConsulta, setShowModalConsulta] = useState(false);
+  const [dataConsulta, setDataConsulta] = useState(() => new Date().toISOString().split('T')[0]);
+  const [pesoConsulta, setPesoConsulta] = useState('');
+  const [cinturaConsulta, setCinturaConsulta] = useState('');
+  const [quadrilConsulta, setQuadrilConsulta] = useState('');
+  const [gorduraConsulta, setGorduraConsulta] = useState('');
+  const [obsConsulta, setObsConsulta] = useState('');
+  const [retornoConsulta, setRetornoConsulta] = useState('');
+  const [salvandoConsulta, setSalvandoConsulta] = useState(false);
+  const [erroConsulta, setErroConsulta] = useState<string | null>(null);
+
+  // Estados do Assistente de IA
+  const [diagnosis, setDiagnosis] = useState<string | null>(() => localStorage.getItem(`diagnosis_${id}`) || null);
   const [generating, setGenerating] = useState(false);
   const [errorIa, setErrorIa] = useState<string | null>(null);
-
-  // Carrega chave API do LocalStorage ou do .env
-  const [apiKey, setApiKey] = useState<string>(() => {
-    const local = localStorage.getItem('gemini_api_key') || '';
-    const env = import.meta.env.VITE_GEMINI_API_KEY || '';
-    return local || env;
-  });
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '');
   const [tempKey, setTempKey] = useState<string>(localStorage.getItem('gemini_api_key') || '');
+
+  async function loadPatientDetails() {
+    if (!id || !user) return;
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('nutricionistas')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      const { data: patientData, error: patientError } = await supabase
+        .from('pacientes')
+        .select('*, consultas(*)')
+        .eq('id', id)
+        .eq('nutricionista_id', profileData.id)
+        .single();
+
+      if (patientError) {
+        throw new Error('Paciente não encontrado ou acesso não autorizado.');
+      }
+
+      setPatient(patientData);
+      
+      if (patientData) {
+        setNome(patientData.nome || '');
+        setDataNascimento(patientData.data_nascimento || '');
+        setSexo(patientData.sexo || '');
+        setTelefone(patientData.telefone || '');
+        setWhatsapp(patientData.whatsapp || '');
+        setEmail(patientData.email || '');
+        setPesoInicial(patientData.peso_inicial ? String(patientData.peso_inicial) : '');
+        setAltura(patientData.altura ? String(Math.round(patientData.altura * 100)) : '');
+        setObjetivos(patientData.objetivos as string[] || []);
+        setObjetivoTexto(patientData.objetivo_texto || '');
+        setNivelAtividade(patientData.nivel_atividade || '');
+        setPatologias(patientData.patologias as string[] || []);
+        setRestricoesAlimentares(patientData.restricoes_alimentares as string[] || []);
+        setAlergias(patientData.alergias as string[] || []);
+        setMedicamentos(patientData.medicamentos || '');
+        setSuplementos(patientData.suplementos || '');
+        setRefeicoesPorDia(patientData.refeicoes_por_dia ? String(patientData.refeicoes_por_dia) : '4');
+        setHorarioAcorda(patientData.horario_acorda || '');
+        setHorarioDorme(patientData.horario_dorme || '');
+        setLitrosAgua(patientData.litros_agua ? String(patientData.litros_agua) : '');
+        setAtividadeFisica(patientData.atividade_fisica || false);
+        setAtividadeFisicaDescricao(patientData.atividade_fisica_descricao || '');
+        setObservacoes(patientData.observacoes || '');
+      }
+
+      if (patientData && patientData.consultas) {
+        const sorted = (patientData.consultas as Tables<'consultas'>[]).sort((a, b) => {
+          return new Date(b.data_consulta).getTime() - new Date(a.data_consulta).getTime();
+        });
+        setConsultas(sorted);
+      }
+    } catch (err: any) {
+      console.error('Erro ao buscar detalhes do paciente:', err);
+      setError(err.message || 'Erro ao carregar dados do paciente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadPatientDetails();
+  }, [id, user]);
+
+  const handleSalvarPaciente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !patient) return;
+    try {
+      setSalvandoDados(true);
+      setError(null);
+
+      const alturaMetros = altura ? parseFloat(altura) / 100 : null;
+
+      const payload = {
+        nome,
+        data_nascimento: dataNascimento || null,
+        sexo: sexo || null,
+        telefone: telefone || null,
+        whatsapp: whatsapp || null,
+        email: email || null,
+        peso_inicial: pesoInicial ? parseFloat(pesoInicial) : null,
+        altura: alturaMetros,
+        objetivos: objetivos.length > 0 ? objetivos : null,
+        objetivo_texto: objetivoTexto || null,
+        nivel_atividade: nivelAtividade || null,
+        patologias: patologias.length > 0 ? patologias : null,
+        restricoes_alimentares: restricoesAlimentares.length > 0 ? restricoesAlimentares : null,
+        alergias: alergias.length > 0 ? alergias : null,
+        medicamentos: medicamentos || null,
+        suplementos: suplementos || null,
+        refeicoes_por_dia: refeicoesPorDia ? parseInt(refeicoesPorDia) : null,
+        horario_acorda: horarioAcorda || null,
+        horario_dorme: horarioDorme || null,
+        litros_agua: litrosAgua ? parseFloat(litrosAgua) : null,
+        atividade_fisica: atividadeFisica,
+        atividade_fisica_descricao: atividadeFisica ? atividadeFisicaDescricao : null,
+        observacoes: observacoes || null
+      };
+
+      const { error: dbError } = await supabase
+        .from('pacientes')
+        .update(payload)
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      setSucessoDados(true);
+      setTimeout(() => setSucessoDados(false), 3000);
+      loadPatientDetails();
+    } catch (err: any) {
+      console.error(err);
+      setError('Erro ao salvar alterações na ficha do paciente.');
+    } finally {
+      setSalvandoDados(false);
+    }
+  };
+
+  const handleSalvarConsulta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !patient) return;
+    if (!pesoConsulta) {
+      setErroConsulta('O peso é obrigatório.');
+      return;
+    }
+
+    try {
+      setSalvandoConsulta(true);
+      setErroConsulta(null);
+
+      const payload = {
+        paciente_id: id,
+        data_consulta: dataConsulta,
+        peso: parseFloat(pesoConsulta),
+        cintura: cinturaConsulta ? parseFloat(cinturaConsulta) : null,
+        quadril: quadrilConsulta ? parseFloat(quadrilConsulta) : null,
+        percentual_gordura: gorduraConsulta ? parseFloat(gorduraConsulta) : null,
+        observacoes: obsConsulta || null,
+        proximo_retorno: retornoConsulta || null
+      };
+
+      const { error: dbError } = await supabase
+        .from('consultas')
+        .insert(payload);
+
+      if (dbError) throw dbError;
+
+      setShowModalConsulta(false);
+      // Reset formulário
+      setPesoConsulta('');
+      setCinturaConsulta('');
+      setQuadrilConsulta('');
+      setGorduraConsulta('');
+      setObsConsulta('');
+      setRetornoConsulta('');
+      setDataConsulta(new Date().toISOString().split('T')[0]);
+
+      loadPatientDetails();
+    } catch (err: any) {
+      console.error(err);
+      setErroConsulta('Erro ao registrar consulta no banco de dados.');
+    } finally {
+      setSalvandoConsulta(false);
+    }
+  };
+
+  const toggleSelection = (item: string, list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if (item === 'Nenhum') {
+      setList(list.includes('Nenhum') ? [] : ['Nenhum']);
+    } else {
+      let newList = list.filter(i => i !== 'Nenhum');
+      newList = newList.includes(item) ? newList.filter(i => i !== item) : [...newList, item];
+      setList(newList);
+    }
+  };
+
+  const primeiraConsulta = consultas.length > 0 ? consultas[consultas.length - 1] : null;
+  const ultimaConsulta = consultas.length > 0 ? consultas[0] : null;
+
+  const variacaoGeral = () => {
+    if (!patient) return { peso: 0, gordura: 0, cintura: 0 };
+    const pesoIni = patient.peso_inicial || primeiraConsulta?.peso || 0;
+    const pesoAtu = ultimaConsulta?.peso || pesoIni;
+    const gorduraIni = primeiraConsulta?.percentual_gordura || 0;
+    const gorduraAtu = ultimaConsulta?.percentual_gordura || 0;
+    const cinturaIni = primeiraConsulta?.cintura || 0;
+    const cinturaAtu = ultimaConsulta?.cintura || 0;
+
+    return {
+      peso: pesoIni && pesoAtu ? pesoAtu - pesoIni : 0,
+      gordura: gorduraIni && gorduraAtu ? gorduraAtu - gorduraIni : 0,
+      cintura: cinturaIni && cinturaAtu ? cinturaAtu - cinturaIni : 0
+    };
+  };
+
+  const obterVariacaoMedida = (valorAtual: number | null, valorAnterior: number | null, unidade: string) => {
+    if (valorAtual === null || valorAnterior === null) return null;
+    const diferenca = valorAtual - valorAnterior;
+    if (diferenca === 0) return <span className="growth-badge neutral">0.0</span>;
+    const isReducao = diferenca < 0;
+    return (
+      <span className={`growth-badge ${isReducao ? 'good' : 'bad'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+        {isReducao ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+        {diferenca > 0 ? '+' : ''}{diferenca.toFixed(1)}{unidade}
+      </span>
+    );
+  };
+
+  const renderGraficoSVG = () => {
+    if (!patient) return null;
+    
+    // Une peso inicial e consultas
+    const pontos: { data: string; peso: number }[] = [];
+    if (patient.peso_inicial) {
+      pontos.push({
+        data: formatarDataBR(patient.created_at ? patient.created_at.split('T')[0] : null),
+        peso: patient.peso_inicial
+      });
+    }
+
+    const consultasComPeso = [...consultas]
+      .filter(c => c.peso !== null)
+      .reverse(); // cronológico
+
+    consultasComPeso.forEach(c => {
+      pontos.push({
+        data: formatarDataBR(c.data_consulta),
+        peso: c.peso as number
+      });
+    });
+
+    if (pontos.length < 2) {
+      return (
+        <div style={{ height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed var(--border-color)', color: 'var(--text-secondary)' }}>
+          <Clock size={28} style={{ marginBottom: '8px', color: 'var(--text-muted)' }} />
+          <p style={{ fontSize: '0.9rem', margin: 0, fontWeight: 500 }}>Nenhuma evolução registrada ainda</p>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Adicione mais de uma consulta para visualizar a curva de peso.</span>
+        </div>
+      );
+    }
+
+    const pesos = pontos.map(p => p.peso);
+    const minPeso = Math.min(...pesos) - 2;
+    const maxPeso = Math.max(...pesos) + 2;
+    const rangePeso = maxPeso - minPeso || 1;
+
+    const width = 500;
+    const height = 150;
+    const paddingLeft = 40;
+    const paddingRight = 20;
+    const paddingTop = 20;
+    const paddingBottom = 20;
+
+    const chartWidth = width - paddingLeft - paddingRight;
+    const chartHeight = height - paddingTop - paddingBottom;
+
+    // Converte ponto para coordenadas SVG
+    const getCoords = (index: number, peso: number) => {
+      const x = paddingLeft + (index / (pontos.length - 1)) * chartWidth;
+      const y = paddingTop + chartHeight - ((peso - minPeso) / rangePeso) * chartHeight;
+      return { x, y };
+    };
+
+    let pathD = '';
+    let areaD = `M ${paddingLeft} ${height - paddingBottom}`;
+
+    pontos.forEach((p, index) => {
+      const { x, y } = getCoords(index, p.peso);
+      if (index === 0) {
+        pathD += `M ${x} ${y}`;
+      } else {
+        pathD += ` L ${x} ${y}`;
+      }
+      areaD += ` L ${x} ${y}`;
+    });
+
+    areaD += ` L ${getCoords(pontos.length - 1, pontos[pontos.length - 1].peso).x} ${height - paddingBottom} Z`;
+
+    return (
+      <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)' }}>
+        <h4 style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+          <TrendingDown size={18} color="var(--primary-color)" />
+          Curva de Evolução de Peso
+        </h4>
+        <div style={{ width: '100%', overflowX: 'auto' }}>
+          <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--primary-color)" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="var(--primary-color)" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Linhas de Grade Horizontal */}
+            {[0, 0.5, 1].map((ratio, i) => {
+              const y = paddingTop + ratio * chartHeight;
+              const pesoVal = maxPeso - ratio * rangePeso;
+              return (
+                <g key={i}>
+                  <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f3f4f6" strokeWidth="1" strokeDasharray="3,3" />
+                  <text x={paddingLeft - 8} y={y + 4} fill="var(--text-secondary)" fontSize="9" fontWeight="600" textAnchor="end">
+                    {pesoVal.toFixed(1)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Área Gradiente */}
+            <path d={areaD} fill="url(#chartGrad)" />
+
+            {/* Linha Principal */}
+            <path d={pathD} fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+            {/* Pontos */}
+            {pontos.map((p, index) => {
+              const { x, y } = getCoords(index, p.peso);
+              return (
+                <g key={index} className="chart-point-group">
+                  <circle cx={x} cy={y} r="5" fill="white" stroke="var(--primary-color)" strokeWidth="3" />
+                  <text x={x} y={y - 10} fill="var(--text-primary)" fontSize="9" fontWeight="bold" textAnchor="middle">
+                    {p.peso} kg
+                  </text>
+                  <text x={x} y={height - 4} fill="var(--text-secondary)" fontSize="8" textAnchor="middle" fontWeight="500">
+                    {p.data.split('/')[0]}/{p.data.split('/')[1]}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+    );
+  };
 
   const salvarApiKey = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,77 +447,29 @@ const DetalhesPaciente: React.FC = () => {
   const copiarDiagnostico = () => {
     if (diagnosis) {
       navigator.clipboard.writeText(diagnosis);
-      alert('Diagnóstico copiado para a área de transferência!');
+      alert('Diagnóstico copiado!');
     }
   };
 
-  // Helper para interpretar negritos simples (**texto**) dentro do texto
-  const parseInlineStyles = (text: string) => {
-    const parts = text.split(/\*\*([^*]+)\*\*/g);
-    return parts.map((part, i) => {
-      if (i % 2 === 1) {
-        return <strong key={i}>{part}</strong>;
-      }
-      return part;
-    });
-  };
-
-  // Conversor simples de Markdown em Elementos React
   const renderMarkdown = (text: string) => {
-    const lines = text.split('\n');
-    let inList = false;
-    const htmlElements: React.ReactNode[] = [];
-
-    lines.forEach((line, index) => {
+    return text.split('\n').map((line, index) => {
       const trimmed = line.trim();
-
-      if (trimmed === '') {
-        if (inList) inList = false;
-        return;
-      }
-
-      // Título H2
+      if (trimmed === '') return null;
       if (trimmed.startsWith('## ')) {
-        if (inList) inList = false;
-        const cleanText = trimmed.replace('## ', '');
-        htmlElements.push(<h2 key={`h2-${index}`}>{parseInlineStyles(cleanText)}</h2>);
-        return;
+        return <h2 key={index} style={{ color: 'var(--text-primary)', marginTop: '24px', fontSize: '1.25rem', fontWeight: 800 }}>{trimmed.replace('## ', '')}</h2>;
       }
-
-      // Título H3
       if (trimmed.startsWith('### ')) {
-        if (inList) inList = false;
-        const cleanText = trimmed.replace('### ', '');
-        htmlElements.push(<h3 key={`h3-${index}`}>{parseInlineStyles(cleanText)}</h3>);
-        return;
+        return <h3 key={index} style={{ color: 'var(--text-primary)', marginTop: '16px', fontSize: '1.05rem', fontWeight: 700 }}>{trimmed.replace('### ', '')}</h3>;
       }
-
-      // Listas
       if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        const cleanText = trimmed.substring(2);
-        inList = true;
-        htmlElements.push(
-          <ul key={`ul-${index}`} style={{ margin: '0 0 8px 0' }}>
-            <li>{parseInlineStyles(cleanText)}</li>
+        return (
+          <ul key={index} style={{ margin: '0 0 8px 16px', color: 'var(--text-secondary)' }}>
+            <li>{trimmed.substring(2)}</li>
           </ul>
         );
-        return;
       }
-
-      // Citação
-      if (trimmed.startsWith('> ')) {
-        if (inList) inList = false;
-        const cleanText = trimmed.substring(2);
-        htmlElements.push(<blockquote key={`quote-${index}`}>{parseInlineStyles(cleanText)}</blockquote>);
-        return;
-      }
-
-      // Parágrafo padrão
-      if (inList) inList = false;
-      htmlElements.push(<p key={`p-${index}`}>{parseInlineStyles(trimmed)}</p>);
+      return <p key={index} style={{ color: 'var(--text-secondary)', lineHeight: '1.6', fontSize: '0.92rem', marginBottom: '8px' }}>{trimmed}</p>;
     });
-
-    return htmlElements;
   };
 
   const gerarDiagnostico = async () => {
@@ -151,254 +478,60 @@ const DetalhesPaciente: React.FC = () => {
       setGenerating(true);
       setErrorIa(null);
 
-      const idade = calcularIdade(patient.data_nascimento);
-      const imc = calcularIMC(patient.peso_inicial, patient.altura);
-      const patologiasStr = patient.patologias && (patient.patologias as string[]).length > 0 ? (patient.patologias as string[]).join(', ') : 'Nenhuma';
-      const restricoesStr = patient.restricoes_alimentares && (patient.restricoes_alimentares as string[]).length > 0 ? (patient.restricoes_alimentares as string[]).join(', ') : 'Nenhuma';
-      const alergiasStr = patient.alergias && (patient.alergias as string[]).length > 0 ? (patient.alergias as string[]).join(', ') : 'Nenhuma';
-      const objetivosStr = patient.objetivos && (patient.objetivos as string[]).length > 0 ? (patient.objetivos as string[]).join(', ') : 'Não informado';
-      const atividadeFisicaStr = patient.atividade_fisica ? `Sim (${patient.atividade_fisica_descricao || 'Sem descrição'})` : 'Sedentário';
+      const idadeVal = calcularIdade(patient.data_nascimento);
+      const restricoesStr = restricoesAlimentares.join(', ') || 'Nenhuma';
+      const patologiasStr = patologias.join(', ') || 'Nenhuma';
+      const alergiasStr = alergias.join(', ') || 'Nenhuma';
 
-      let consultasTexto = 'Histórico de consultas:\n';
-      if (consultas.length > 0) {
-        consultas.forEach((c) => {
-          consultasTexto += `- Data: ${formatarDataBR(c.data_consulta)} | Peso: ${c.peso || '--'} kg | % Gordura: ${c.percentual_gordura || '--'}% | Cintura: ${c.cintura || '--'} cm | Notas: ${c.observacoes || 'Nenhuma'}\n`;
-        });
-      } else {
-        consultasTexto += 'Nenhuma consulta registrada ainda.\n';
-      }
-
-      const prompt = `Você é um assistente de inteligência artificial de nutrição altamente qualificado e experiente.
-Analise os dados clínicos e antropométricos abaixo e forneça um diagnóstico nutricional estruturado, contendo orientações gerais, identificação de riscos alimentares, sugestões de hábitos e um plano de ação preliminar.
-
-DADOS DO PACIENTE:
-- Nome: ${patient.nome}
-- Idade: ${idade}
-- Sexo: ${patient.sexo || 'Não informado'}
-- Peso Inicial: ${patient.peso_inicial || '--'} kg
-- Altura: ${patient.altura || '--'} m
-- IMC Inicial: ${imc ? `${imc.valor} (${imc.classificacao})` : 'Não calculado'}
-- Nível de Atividade Física: ${patient.nivel_atividade || 'Não informado'}
-- Hábitos: ${atividadeFisicaStr} | Água/dia: ${patient.litros_agua || '--'} L | Refeições/dia: ${patient.refeicoes_por_dia || '--'} | Horário de sono: ${patient.horario_acorda || '--'} às ${patient.horario_dorme || '--'}
-- Objetivos Clínicos: ${objetivosStr}
-- Detalhe do Objetivo: ${patient.objetivo_texto || 'Não informado'}
-- Patologias/Doenças: ${patologiasStr}
-- Restrições Alimentares: ${restricoesStr}
-- Alergias: ${alergiasStr}
-- Medicamentos de Uso Contínuo: ${patient.medicamentos || 'Nenhum'}
-- Suplementos: ${patient.suplementos || 'Nenhum'}
-- Observações da Anamnese: ${patient.observacoes || 'Nenhuma'}
-
-${consultasTexto}
-
-Instruções para o diagnóstico:
-1. Escreva em Português do Brasil de forma clara, profissional e acolhedora.
-2. Divida o text obrigatoriamente usando os seguintes títulos em Markdown:
-   - ## Resumo Clínico do Paciente
-   - ## Análise de Composição & Evolução Corporal
-   - ## Alertas e Mapeamento de Riscos
-   - ## Diretrizes Alimentares Recomendadas
-   - ## Plano de Ação Sugerido
-3. Use tópicos claros e negrito para destacar informações essenciais.
-4. Evite prescrever remédios ou dosagens de suplementos, limite-se a orientações nutricionais e de hábitos.
-5. Escreva de maneira objetiva e que sirva como um apoio profissional ao nutricionista responsável.`;
+      const prompt = `Você é um assistente de nutrição experiente. Analise os dados e elabore um diagnóstico nutricional estruturado em PT-BR:
+      Paciente: ${patient.nome} | Idade: ${idadeVal} | Sexo: ${patient.sexo} | Altura: ${patient.altura} m
+      Hábitos: Refeições/dia: ${refeicoesPorDia} | Água: ${litrosAgua} L/dia | Atividade física: ${atividadeFisica ? 'Sim' : 'Não'} (${atividadeFisicaDescricao})
+      Clínico: Patologias: ${patologiasStr} | Restrições: ${restricoesStr} | Alergias: ${alergiasStr} | Medicamentos: ${medicamentos} | Suplementos: ${suplementos}
+      Histórico de Peso: Inicial ${patient.peso_inicial} kg.
+      
+      Gere com os tópicos:
+      ## Resumo Clínico do Paciente
+      ## Análise de Composição & Evolução Corporal
+      ## Alertas e Mapeamento de Riscos
+      ## Diretrizes Alimentares Recomendadas
+      ## Plano de Ação Sugerido`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `Erro na API do Gemini: Código ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error('Falha ao comunicar com API Gemini.');
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!text) {
-        throw new Error('Nenhuma resposta gerada pela IA.');
-      }
+      if (!text) throw new Error('Resposta vazia da IA.');
 
       setDiagnosis(text);
       localStorage.setItem(`diagnosis_${id}`, text);
-
     } catch (err: any) {
-      console.error('Erro na geração do diagnóstico por IA:', err);
-      setErrorIa(err.message || 'Erro inesperado ao gerar análise da IA.');
+      console.error(err);
+      setErrorIa(err.message || 'Erro ao gerar análise.');
     } finally {
       setGenerating(false);
     }
   };
 
-  useEffect(() => {
-    async function loadPatientDetails() {
-      if (!id || !user) return;
-      try {
-        setLoading(true);
-        setError(null);
-
-        // 1. Puxar nutricionista para segurança complementar
-        const { data: profileData, error: profileError } = await supabase
-          .from('nutricionistas')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (profileError) throw profileError;
-
-        // 2. Carregar paciente e suas consultas associadas
-        const { data: patientData, error: patientError } = await supabase
-          .from('pacientes')
-          .select('*, consultas(*)')
-          .eq('id', id)
-          .eq('nutricionista_id', profileData.id)
-          .single();
-
-        if (patientError) {
-          throw new Error('Paciente não encontrado ou acesso não autorizado.');
-        }
-
-        setPatient(patientData);
-        
-        // Carrega consultas ordenadas por data descendente (mais recentes primeiro)
-        if (patientData && patientData.consultas) {
-          const sorted = (patientData.consultas as Tables<'consultas'>[]).sort((a, b) => {
-            return new Date(b.data_consulta).getTime() - new Date(a.data_consulta).getTime();
-          });
-          setConsultas(sorted);
-        }
-      } catch (err: any) {
-        console.error('Erro ao buscar detalhes do paciente:', err);
-        setError(err.message || 'Erro ao carregar dados do paciente.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadPatientDetails();
-  }, [id, user]);
-
-  // A primeira consulta do paciente no tempo (a última da lista se a lista for decrescente)
-  const primeiraConsulta = consultas.length > 0 ? consultas[consultas.length - 1] : null;
-  const ultimaConsulta = consultas.length > 0 ? consultas[0] : null;
-
-  const calcularVariacaoGeral = () => {
-    if (!patient) return { peso: 0, gordura: 0, cintura: 0 };
-    
-    // Peso inicial do cadastro ou da primeira consulta registrada
-    const pesoInicial = patient.peso_inicial || primeiraConsulta?.peso || 0;
-    const pesoAtual = ultimaConsulta?.peso || pesoInicial;
-    const varPeso = pesoInicial && pesoAtual ? pesoAtual - pesoInicial : 0;
-
-    // Percentual de gordura
-    const gorduraInicial = primeiraConsulta?.percentual_gordura || 0;
-    const gorduraAtual = ultimaConsulta?.percentual_gordura || 0;
-    const varGordura = gorduraInicial && gorduraAtual ? gorduraAtual - gorduraInicial : 0;
-
-    // Cintura
-    const cinturaInicial = primeiraConsulta?.cintura || 0;
-    const cinturaAtual = ultimaConsulta?.cintura || 0;
-    const varCintura = cinturaInicial && cinturaAtual ? cinturaAtual - cinturaInicial : 0;
-
-    return {
-      peso: varPeso,
-      gordura: varGordura,
-      cintura: varCintura
-    };
-  };
-
-  const variacaoGeral = calcularVariacaoGeral();
-
-  const obterVariacaoMedida = (valorAtual: number | null, valorAnterior: number | null, unidade: string) => {
-    if (valorAtual === null || valorAnterior === null) return null;
-    const diferenca = valorAtual - valorAnterior;
-    if (diferenca === 0) {
-      return <span className="growth-badge neutral">0.0</span>;
-    }
-    const sinal = diferenca > 0 ? '+' : '';
-    // Peso, gordura, cintura, quadril: redução costuma ser positivo (bom = verde) na maioria dos casos
-    const isReducao = diferenca < 0;
-    return (
-      <span className={`growth-badge ${isReducao ? 'good' : 'bad'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-        {isReducao ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
-        {sinal}{diferenca.toFixed(1)}{unidade}
-      </span>
-    );
-  };
-
-  const calcularIMCPontual = (peso: number | null, altura: number | null) => {
-    if (!peso || !altura) return '--';
-    return (peso / (altura * altura)).toFixed(1);
-  };
-
-  // Função para calcular a idade
   const calcularIdade = (dataNascStr: string | null) => {
     if (!dataNascStr) return 'Não informada';
-    try {
-      const [year, month, day] = dataNascStr.split('-').map(Number);
-      const nasc = new Date(year, month - 1, day);
-      const hoje = new Date();
-      let idade = hoje.getFullYear() - nasc.getFullYear();
-      const m = hoje.getMonth() - nasc.getMonth();
-      if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) {
-        idade--;
-      }
-      return `${idade} anos`;
-    } catch {
-      return 'Não informada';
-    }
+    const [year, month, day] = dataNascStr.split('-').map(Number);
+    const nasc = new Date(year, month - 1, day);
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+    return `${idade} anos`;
   };
 
-  // Função para formatar data brasileira (DD/MM/YYYY)
   const formatarDataBR = (dateStr: string | null) => {
-    if (!dateStr) return 'Não informada';
-    try {
-      const [year, month, day] = dateStr.split('-');
-      return `${day}/${month}/${year}`;
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Calcular IMC e Classificação
-  const calcularIMC = (peso: number | null, altura: number | null) => {
-    if (!peso || !altura) return null;
-    const imc = peso / (altura * altura);
-    
-    let classificacao = 'Normal';
-    let badgeClass = 'imc-normal';
-
-    if (imc < 18.5) {
-      classificacao = 'Abaixo do peso';
-      badgeClass = 'imc-alert';
-    } else if (imc >= 25 && imc < 30) {
-      classificacao = 'Sobrepeso';
-      badgeClass = 'imc-alert';
-    } else if (imc >= 30) {
-      classificacao = 'Obesidade';
-      badgeClass = 'imc-danger';
-    }
-
-    return {
-      valor: imc.toFixed(1),
-      classificacao,
-      badgeClass
-    };
-  };
-
-  // Link formatado para WhatsApp Web
-  const linkWhatsApp = (whatsStr: string | null) => {
-    if (!whatsStr) return '#';
-    const apenasNumeros = whatsStr.replace(/\D/g, '');
-    const prefixo = apenasNumeros.startsWith('55') ? '' : '55';
-    return `https://wa.me/${prefixo}${apenasNumeros}`;
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
   };
 
   if (loading) {
@@ -412,43 +545,22 @@ Instruções para o diagnóstico:
   if (error || !patient) {
     return (
       <div className="page-container" style={{ maxWidth: '600px', textAlign: 'center' }}>
-        <div className="error-box" style={{ justifyContent: 'center', padding: '24px', borderRadius: '12px', marginBottom: '24px' }}>
-          <span>{error || 'Não foi possível carregar as informações do paciente.'}</span>
+        <div className="error-box" style={{ padding: '24px', borderRadius: '12px', marginBottom: '24px' }}>
+          <span>{error || 'Não foi possível carregar os dados.'}</span>
         </div>
-        <button onClick={() => navigate('/pacientes')} className="btn-secondary">
-          Voltar para Lista
-        </button>
+        <button onClick={() => navigate('/pacientes')} className="btn-secondary">Voltar para Lista</button>
       </div>
     );
   }
 
-  const imcResult = calcularIMC(patient.peso_inicial, patient.altura);
-  const iniciais = patient.nome
-    .split(' ')
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  const iniciais = patient.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   return (
     <div className="page-container animate-fade-in">
-      
       {/* Botão Voltar */}
       <button 
         onClick={() => navigate('/pacientes')} 
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'none',
-          border: 'none',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-          fontWeight: 600,
-          fontSize: '0.9rem',
-          padding: 0,
-          marginBottom: '24px'
-        }}
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: 0, marginBottom: '24px' }}
       >
         <ArrowLeft size={16} />
         Voltar para Pacientes
@@ -456,16 +568,11 @@ Instruções para o diagnóstico:
 
       {/* Grid Principal */}
       <div className="patient-details-grid">
-        
-        {/* Painel Esquerdo - Sidebar com dados do paciente */}
+        {/* Painel Esquerdo */}
         <aside className="patient-sidebar-card">
-          <div className="patient-large-avatar">
-            {iniciais}
-          </div>
+          <div className="patient-large-avatar">{iniciais}</div>
           <h2 className="patient-sidebar-name">{patient.nome}</h2>
-          <p className="patient-sidebar-subtext">
-            Paciente desde {formatarDataBR(patient.created_at ? patient.created_at.split('T')[0] : null)}
-          </p>
+          <p className="patient-sidebar-subtext">Paciente desde {formatarDataBR(patient.created_at ? patient.created_at.split('T')[0] : null)}</p>
 
           <div className="sidebar-stats-row">
             <div className="sidebar-stat-item">
@@ -474,410 +581,292 @@ Instruções para o diagnóstico:
             </div>
             <div className="sidebar-stat-item">
               <span className="sidebar-stat-label">Altura</span>
-              <span className="sidebar-stat-value">{patient.altura ? `${patient.altura} m` : '--'}</span>
+              <span className="sidebar-stat-value">{patient.altura ? `${Math.round(patient.altura * 100)} cm` : '--'}</span>
             </div>
           </div>
 
           <div className="patient-contact-list">
             {patient.whatsapp && (
-              <a 
-                href={linkWhatsApp(patient.whatsapp)} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="contact-item"
-              >
+              <a href={`https://wa.me/${patient.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="contact-item">
                 <Phone size={16} color="var(--primary-color)" />
-                <span>{patient.whatsapp} (WhatsApp)</span>
+                <span>{patient.whatsapp}</span>
               </a>
-            )}
-            {patient.telefone && (
-              <div className="contact-item" style={{ color: 'var(--text-secondary)' }}>
-                <Phone size={16} color="var(--primary-color)" style={{ opacity: 0.7 }} />
-                <span>{patient.telefone} (Telefone)</span>
-              </div>
             )}
             {patient.email && (
               <a href={`mailto:${patient.email}`} className="contact-item">
                 <Mail size={16} color="var(--primary-color)" />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{patient.email}</span>
+                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{patient.email}</span>
               </a>
             )}
           </div>
-
-          <button
-            onClick={() => navigate(`/pacientes/${id}/editar`)}
-            className="btn-secondary"
-            style={{ 
-              marginTop: '24px', 
-              width: '100%', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '8px',
-              fontSize: '0.9rem',
-              padding: '10px'
-            }}
-          >
-            <Edit size={16} />
-            Editar Perfil
-          </button>
         </aside>
 
-        {/* Painel Direito - Abas de conteúdo */}
+        {/* Painel Direito */}
         <main>
           <div className="details-tabs-header">
-            <button 
-              onClick={() => setActiveTab('clinico')}
-              className={`details-tab-btn ${activeTab === 'clinico' ? 'active' : ''}`}
-            >
-              Ficha Clínica & Anamnese
-            </button>
-            <button 
-              onClick={() => setActiveTab('consultas')}
-              className={`details-tab-btn ${activeTab === 'consultas' ? 'active' : ''}`}
-            >
-              Consultas & Evolução
-            </button>
-            <button 
-              onClick={() => setActiveTab('plano')}
-              className={`details-tab-btn ${activeTab === 'plano' ? 'active' : ''}`}
-            >
-              Plano Alimentar
-            </button>
-            <button 
-              onClick={() => setActiveTab('ia')}
-              className={`details-tab-btn ${activeTab === 'ia' ? 'active' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Sparkles size={16} />
-              Assistente de IA
+            <button onClick={() => setActiveTab('clinico')} className={`details-tab-btn ${activeTab === 'clinico' ? 'active' : ''}`}>Dados do Paciente</button>
+            <button onClick={() => setActiveTab('consultas')} className={`details-tab-btn ${activeTab === 'consultas' ? 'active' : ''}`}>Consultas & Evolução</button>
+            <button onClick={() => setActiveTab('plano')} className={`details-tab-btn ${activeTab === 'plano' ? 'active' : ''}`}>Plano Alimentar</button>
+            <button onClick={() => setActiveTab('ia')} className={`details-tab-btn ${activeTab === 'ia' ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={16} /> Assistente de IA
             </button>
           </div>
 
-          {/* ABA 1: FICHA CLÍNICA & ANAMNESE */}
+          {/* ABA 1: DADOS DO PACIENTE (EDITÁVEL INLINE) */}
           {activeTab === 'clinico' && (
-            <div className="info-cards-grid animate-fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-              
-              {/* Card Dados Gerais */}
-              <div className="info-block-card">
-                <h3 className="info-block-title">
-                  <User size={18} color="var(--primary-color)" />
-                  Informações Gerais
-                </h3>
-                <div className="info-data-list">
-                  <div className="info-data-item">
-                    <span className="info-data-label">Idade</span>
-                    <span className="info-data-value">{calcularIdade(patient.data_nascimento)}</span>
-                  </div>
-                  <div className="info-data-item">
-                    <span className="info-data-label">Data de Nascimento</span>
-                    <span className="info-data-value">{formatarDataBR(patient.data_nascimento)}</span>
-                  </div>
-                  <div className="info-data-item">
-                    <span className="info-data-label">Sexo</span>
-                    <span className="info-data-value">{patient.sexo || 'Não informado'}</span>
-                  </div>
-                  {imcResult && (
-                    <div className="info-data-item" style={{ alignItems: 'center' }}>
-                      <span className="info-data-label">IMC Inicial</span>
-                      <span className={`imc-badge ${imcResult.badgeClass}`}>
-                        {imcResult.valor} ({imcResult.classificacao})
-                      </span>
-                    </div>
-                  )}
+            <form onSubmit={handleSalvarPaciente} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {sucessoDados && (
+                <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '12px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.9rem' }}>
+                  <Check size={18} /> Alterações salvas com sucesso no Supabase!
                 </div>
+              )}
+
+              {/* Sub-abas de Edição */}
+              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                {(['pessoal', 'clinico', 'habitos'] as SubTabType[]).map(tab => (
+                  <button 
+                    key={tab} 
+                    type="button" 
+                    onClick={() => setActiveSubTab(tab)} 
+                    style={{ background: activeSubTab === tab ? 'var(--primary-color)' : 'none', color: activeSubTab === tab ? 'white' : 'var(--text-secondary)', border: 'none', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                  >
+                    {tab === 'pessoal' ? 'Pessoal' : tab === 'clinico' ? 'Clínico' : 'Hábitos'}
+                  </button>
+                ))}
               </div>
 
-              {/* Card Estilo de Vida */}
-              <div className="info-block-card">
-                <h3 className="info-block-title">
-                  <Activity size={18} color="var(--primary-color)" />
-                  Hábitos & Estilo de Vida
-                </h3>
-                <div className="info-data-list">
-                  <div className="info-data-item">
-                    <span className="info-data-label">Atividade Física</span>
-                    <span className="info-data-value">{patient.atividade_fisica ? 'Pratica' : 'Sedentário'}</span>
-                  </div>
-                  {patient.atividade_fisica && patient.atividade_fisica_descricao && (
-                    <div className="info-data-item" style={{ flexDirection: 'column', gap: '4px' }}>
-                      <span className="info-data-label" style={{ textAlign: 'left' }}>Atividades Praticadas</span>
-                      <span className="info-data-value" style={{ textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                        {patient.atividade_fisica_descricao}
-                      </span>
+              <div className="info-block-card" style={{ padding: '24px' }}>
+                {activeSubTab === 'pessoal' && (
+                  <div className="form-grid">
+                    <div className="form-group col-12">
+                      <label>Nome Completo</label>
+                      <input type="text" value={nome} onChange={e => setNome(e.target.value)} required />
                     </div>
-                  )}
-                  <div className="info-data-item">
-                    <span className="info-data-label">Nível de Movimento</span>
-                    <span className="info-data-value">{patient.nivel_atividade || 'Não informado'}</span>
+                    <div className="form-group col-6">
+                      <label>Data de Nascimento</label>
+                      <input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} />
+                    </div>
+                    <div className="form-group col-6">
+                      <label>Sexo</label>
+                      <select value={sexo} onChange={e => setSexo(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        <option value="Feminino">Feminino</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Outro">Outro</option>
+                      </select>
+                    </div>
+                    <div className="form-group col-6">
+                      <label>Telefone</label>
+                      <input type="text" value={telefone} onChange={e => setTelefone(e.target.value)} />
+                    </div>
+                    <div className="form-group col-6">
+                      <label>WhatsApp</label>
+                      <input type="text" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} />
+                    </div>
+                    <div className="form-group col-12">
+                      <label>E-mail</label>
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                    </div>
                   </div>
-                  <div className="info-data-item">
-                    <span className="info-data-label">Consumo de Água</span>
-                    <span className="info-data-value">{patient.litros_agua ? `${patient.litros_agua}L / dia` : 'Não informado'}</span>
-                  </div>
-                  <div className="info-data-item">
-                    <span className="info-data-label">Refeições / dia</span>
-                    <span className="info-data-value">{patient.refeicoes_por_dia || '--'} refeições</span>
-                  </div>
-                  <div className="info-data-item">
-                    <span className="info-data-label">Sono</span>
-                    <span className="info-data-value">
-                      {patient.horario_acorda || '--'} às {patient.horario_dorme || '--'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                )}
 
-              {/* Card Objetivos do Paciente (Ocupa largura total) */}
-              <div className="info-block-card" style={{ gridColumn: 'span 2' }}>
-                <h3 className="info-block-title">
-                  <Award size={18} color="var(--primary-color)" />
-                  Objetivos Clínicos & Metas
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {patient.objetivos && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {(patient.objetivos as string[]).map(obj => (
-                        <span key={obj} className="tag-badge primary" style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px' }}>
-                          {obj}
-                        </span>
-                      ))}
+                {activeSubTab === 'clinico' && (
+                  <div className="form-grid">
+                    <div className="form-group col-6">
+                      <label>Peso Inicial (kg)</label>
+                      <input type="number" step="0.1" value={pesoInicial} onChange={e => setPesoInicial(e.target.value)} />
                     </div>
-                  )}
-                  {patient.objetivo_texto ? (
-                    <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {patient.objetivo_texto}
+                    <div className="form-group col-6">
+                      <label>Altura (cm)</label>
+                      <input type="number" value={altura} onChange={e => setAltura(e.target.value)} />
                     </div>
-                  ) : (
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum detalhe específico do objetivo informado.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Card Histórico Clínico */}
-              <div className="info-block-card" style={{ gridColumn: 'span 2' }}>
-                <h3 className="info-block-title">
-                  <Heart size={18} color="var(--primary-color)" />
-                  Ficha Médica & Restrições
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  
-                  {/* Patologias */}
-                  <div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
-                      Patologias e Doenças Diagnósticas
-                    </span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {patient.patologias && (patient.patologias as string[]).length > 0 ? (
-                        (patient.patologias as string[]).map(pat => (
-                          <span key={pat} className="tag-badge" style={{ backgroundColor: '#fee2e2', color: 'var(--error-color)', padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-                            {pat}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nenhuma patologia relatada.</span>
-                      )}
+                    <div className="form-group col-12">
+                      <label>Objetivos (Múltipla escolha)</label>
+                      <div className="chips-container">
+                        {OBJETIVOS_OPCOES.map(op => (
+                          <div key={op} onClick={() => toggleSelection(op, objetivos, setObjetivos)} className={`chip-item ${objetivos.includes(op) ? 'selected' : ''}`}>{op}</div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Restrições Alimentares */}
-                  <div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
-                      Restrições & Preferências Alimentares
-                    </span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {patient.restricoes_alimentares && (patient.restricoes_alimentares as string[]).length > 0 ? (
-                        (patient.restricoes_alimentares as string[]).map(res => (
-                          <span key={res} className="tag-badge" style={{ backgroundColor: '#fef3c7', color: '#d97706', padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-                            {res}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nenhuma restrição alimentar informada.</span>
-                      )}
+                    <div className="form-group col-12">
+                      <label>Detalhamento do Objetivo</label>
+                      <textarea value={objetivoTexto} onChange={e => setObjetivoTexto(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '8px' }} />
+                    </div>
+                    <div className="form-group col-12">
+                      <label>Nível de Atividade</label>
+                      <select value={nivelAtividade} onChange={e => setNivelAtividade(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {NIVEL_ATIVIDADE_OPCOES.map(op => <option key={op} value={op}>{op}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group col-12">
+                      <label>Patologias</label>
+                      <div className="chips-container">
+                        {PATOLOGIAS_OPCOES.map(op => (
+                          <div key={op} onClick={() => toggleSelection(op, patologias, setPatologias)} className={`chip-item ${patologias.includes(op) ? 'selected' : ''}`}>{op}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="form-group col-12">
+                      <label>Restrições Alimentares</label>
+                      <div className="chips-container">
+                        {RESTRICOES_OPCOES.map(op => (
+                          <div key={op} onClick={() => toggleSelection(op, restricoesAlimentares, setRestricoesAlimentares)} className={`chip-item ${restricoesAlimentares.includes(op) ? 'selected' : ''}`}>{op}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="form-group col-12">
+                      <label>Alergias</label>
+                      <div className="chips-container">
+                        {ALERGIAS_OPCOES.map(op => (
+                          <div key={op} onClick={() => toggleSelection(op, alergias, setAlergias)} className={`chip-item ${alergias.includes(op) ? 'selected' : ''}`}>{op}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="form-group col-6">
+                      <label>Medicamentos</label>
+                      <input type="text" value={medicamentos} onChange={e => setMedicamentos(e.target.value)} />
+                    </div>
+                    <div className="form-group col-6">
+                      <label>Suplementos</label>
+                      <input type="text" value={suplementos} onChange={e => setSuplementos(e.target.value)} />
                     </div>
                   </div>
+                )}
 
-                  {/* Alergias */}
-                  <div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
-                      Alergias Alimentares
-                    </span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {patient.alergias && (patient.alergias as string[]).length > 0 ? (
-                        (patient.alergias as string[]).map(ale => (
-                          <span key={ale} className="tag-badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-                            {ale}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nenhuma alergia alimentar informada.</span>
-                      )}
+                {activeSubTab === 'habitos' && (
+                  <div className="form-grid">
+                    <div className="form-group col-4">
+                      <label>Refeições por dia</label>
+                      <input type="number" value={refeicoesPorDia} onChange={e => setRefeicoesPorDia(e.target.value)} />
+                    </div>
+                    <div className="form-group col-4">
+                      <label>Acorda às</label>
+                      <input type="text" value={horarioAcorda} onChange={e => setHorarioAcorda(e.target.value)} />
+                    </div>
+                    <div className="form-group col-4">
+                      <label>Dorme às</label>
+                      <input type="text" value={horarioDorme} onChange={e => setHorarioDorme(e.target.value)} />
+                    </div>
+                    <div className="form-group col-6">
+                      <label>Água por dia (Litros)</label>
+                      <input type="number" step="0.1" value={litrosAgua} onChange={e => setLitrosAgua(e.target.value)} />
+                    </div>
+                    <div className="form-group col-6">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '30px', fontWeight: 600, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={atividadeFisica} onChange={e => setAtividadeFisica(e.target.checked)} />
+                        Pratica Atividade Física
+                      </label>
+                    </div>
+                    {atividadeFisica && (
+                      <div className="form-group col-12">
+                        <label>Quais atividades?</label>
+                        <input type="text" value={atividadeFisicaDescricao} onChange={e => setAtividadeFisicaDescricao(e.target.value)} />
+                      </div>
+                    )}
+                    <div className="form-group col-12">
+                      <label>Anotações Clínicas / Observações</label>
+                      <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} style={{ width: '100%', minHeight: '100px', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '8px' }} />
                     </div>
                   </div>
-
-                  {/* Medicamentos e Suplementos */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', borderTop: '1px solid #f3f4f6', paddingTop: '16px' }}>
-                    <div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                        Medicamentos de Uso Contínuo
-                      </span>
-                      <p style={{ fontSize: '0.9rem', color: patient.medicamentos ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                        {patient.medicamentos || 'Nenhum medicamento relatado.'}
-                      </p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                        Suplementação Utilizada
-                      </span>
-                      <p style={{ fontSize: '0.9rem', color: patient.suplementos ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                        {patient.suplementos || 'Nenhum suplemento relatado.'}
-                      </p>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Card Observações Anamnese */}
-              <div className="info-block-card" style={{ gridColumn: 'span 2' }}>
-                <h3 className="info-block-title">
-                  <ShieldAlert size={18} color="var(--primary-color)" />
-                  Notas Finais da Anamnese
-                </h3>
-                {patient.observacoes ? (
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
-                    {patient.observacoes}
-                  </p>
-                ) : (
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhuma anotação adicional registrada.</p>
                 )}
               </div>
 
-            </div>
+              <button type="submit" disabled={salvandoDados} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-end' }}>
+                {salvandoDados ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                Salvar Alterações
+              </button>
+            </form>
           )}
 
           {/* ABA 2: CONSULTAS & EVOLUÇÃO */}
           {activeTab === 'consultas' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-              
-              {/* Header da Aba */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h3 style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '1.25rem', margin: 0 }}>
-                    Acompanhamento & Evolução Física
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-                    Histórico de medidas corporais e anotações de evolução do paciente.
-                  </p>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 800 }}>Consultas & Evolução Física</h3>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Evolução de peso e histórico completo de avaliações clínicas.</p>
                 </div>
-                <button 
-                  onClick={() => navigate(`/pacientes/${id}/consultas/cadastro`)}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <Plus size={16} />
-                  Registrar Consulta
+                <button onClick={() => setShowModalConsulta(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Plus size={16} /> Nova Consulta
                 </button>
               </div>
 
+              {/* Gráfico de Evolução de Peso */}
+              {renderGraficoSVG()}
+
               {consultas.length > 0 ? (
-                <>
-                  {/* Row de Resumo de Progresso Acumulado */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Cards de Resumo */}
                   <div className="progress-cards-row">
                     <div className="progress-summary-card">
-                      <span className="progress-summary-label">Variação Total de Peso</span>
-                      <span className="progress-summary-value" style={{ color: variacaoGeral.peso < 0 ? 'var(--primary-color)' : variacaoGeral.peso > 0 ? 'var(--error-color)' : 'var(--text-primary)' }}>
-                        {variacaoGeral.peso === 0 ? '0.0 kg' : `${variacaoGeral.peso > 0 ? '+' : ''}${variacaoGeral.peso.toFixed(1)} kg`}
+                      <span className="progress-summary-label">Variação Total</span>
+                      <span className="progress-summary-value" style={{ color: variacaoGeral().peso < 0 ? 'var(--primary-color)' : variacaoGeral().peso > 0 ? 'var(--error-color)' : 'var(--text-primary)' }}>
+                        {variacaoGeral().peso === 0 ? '0.0 kg' : `${variacaoGeral().peso > 0 ? '+' : ''}${variacaoGeral().peso.toFixed(1)} kg`}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Comparado ao peso inicial de cadastro
-                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Desde o peso inicial cadastrado</span>
                     </div>
-
-                    <div className="progress-summary-card">
-                      <span className="progress-summary-label">Variação de Gordura</span>
-                      <span className="progress-summary-value" style={{ color: variacaoGeral.gordura < 0 ? 'var(--primary-color)' : variacaoGeral.gordura > 0 ? 'var(--error-color)' : 'var(--text-primary)' }}>
-                        {variacaoGeral.gordura === 0 ? '0.0 %' : `${variacaoGeral.gordura > 0 ? '+' : ''}${variacaoGeral.gordura.toFixed(1)}%`}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Diferença entre primeira e última consulta
-                      </span>
-                    </div>
-
                     <div className="progress-summary-card">
                       <span className="progress-summary-label">Variação de Cintura</span>
-                      <span className="progress-summary-value" style={{ color: variacaoGeral.cintura < 0 ? 'var(--primary-color)' : variacaoGeral.cintura > 0 ? 'var(--error-color)' : 'var(--text-primary)' }}>
-                        {variacaoGeral.cintura === 0 ? '0.0 cm' : `${variacaoGeral.cintura > 0 ? '+' : ''}${variacaoGeral.cintura.toFixed(1)} cm`}
+                      <span className="progress-summary-value" style={{ color: variacaoGeral().cintura < 0 ? 'var(--primary-color)' : 'var(--text-primary)' }}>
+                        {variacaoGeral().cintura === 0 ? '0.0 cm' : `${variacaoGeral().cintura > 0 ? '+' : ''}${variacaoGeral().cintura.toFixed(1)} cm`}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Diferença entre primeira e última consulta
-                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Entre a primeira e última consulta</span>
                     </div>
                   </div>
 
-                  {/* Tabela de Evolução */}
-                  <div>
-                    <h4 style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: '16px', fontSize: '1.05rem' }}>
-                      Tabela Comparativa de Medidas
-                    </h4>
-                    <div className="evolution-table-wrapper">
+                  {/* Tabela de Consultas */}
+                  <div className="info-block-card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div style={{ overflowX: 'auto' }}>
                       <table className="evolution-table">
                         <thead>
                           <tr>
                             <th>Data</th>
-                            <th>Peso</th>
+                            <th>Peso (kg)</th>
+                            <th>Cintura (cm)</th>
+                            <th>Quadril (cm)</th>
                             <th>% Gordura</th>
-                            <th>Cintura</th>
-                            <th>Quadril</th>
-                            <th>IMC</th>
+                            <th>Observações</th>
+                            <th>Próximo Retorno</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {consultas.map((cons, index) => {
-                            // Encontrar a consulta cronologicamente anterior no array (index + 1)
-                            const consultaAnterior = index < consultas.length - 1 ? consultas[index + 1] : null;
-                            
-                            // Se for a última (primeira registrada), compara com o cadastro inicial do paciente
-                            const pesoAnterior = consultaAnterior ? consultaAnterior.peso : patient.peso_inicial;
-                            const gorduraAnterior = consultaAnterior ? consultaAnterior.percentual_gordura : null;
-                            const cinturaAnterior = consultaAnterior ? consultaAnterior.cintura : null;
-                            const quadrilAnterior = consultaAnterior ? consultaAnterior.quadril : null;
+                          {consultas.map((c, index) => {
+                            const anterior = index < consultas.length - 1 ? consultas[index + 1] : null;
+                            const pesoAnt = anterior ? anterior.peso : patient.peso_inicial;
+                            const cintAnt = anterior ? anterior.cintura : null;
+                            const quadAnt = anterior ? anterior.quadril : null;
+                            const gorAnt = anterior ? anterior.percentual_gordura : null;
 
                             return (
-                              <tr key={cons.id}>
-                                <td style={{ color: 'var(--primary-color)', fontWeight: 700 }}>
-                                  {formatarDataBR(cons.data_consulta)}
-                                </td>
+                              <tr key={c.id}>
+                                <td style={{ fontWeight: 700, color: 'var(--primary-color)' }}>{formatarDataBR(c.data_consulta)}</td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>{cons.peso ? `${cons.peso} kg` : '--'}</span>
-                                    {obterVariacaoMedida(cons.peso, pesoAnterior, 'kg')}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>{c.peso || '--'}</span>
+                                    {obterVariacaoMedida(c.peso, pesoAnt, 'kg')}
                                   </div>
                                 </td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>{cons.percentual_gordura ? `${cons.percentual_gordura}%` : '--'}</span>
-                                    {obterVariacaoMedida(cons.percentual_gordura, gorduraAnterior, '%')}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>{c.cintura || '--'}</span>
+                                    {obterVariacaoMedida(c.cintura, cintAnt, 'cm')}
                                   </div>
                                 </td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>{cons.cintura ? `${cons.cintura} cm` : '--'}</span>
-                                    {obterVariacaoMedida(cons.cintura, cinturaAnterior, 'cm')}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>{c.quadril || '--'}</span>
+                                    {obterVariacaoMedida(c.quadril, quadAnt, 'cm')}
                                   </div>
                                 </td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>{cons.quadril ? `${cons.quadril} cm` : '--'}</span>
-                                    {obterVariacaoMedida(cons.quadril, quadrilAnterior, 'cm')}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>{c.percentual_gordura ? `${c.percentual_gordura}%` : '--'}</span>
+                                    {obterVariacaoMedida(c.percentual_gordura, gorAnt, '%')}
                                   </div>
                                 </td>
-                                <td>
-                                  <span style={{ fontWeight: 700 }}>
-                                    {calcularIMCPontual(cons.peso, patient.altura)}
-                                  </span>
-                                </td>
+                                <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.observacoes || '--'}</td>
+                                <td style={{ fontWeight: 500 }}>{formatarDataBR(c.proximo_retorno)}</td>
                               </tr>
                             );
                           })}
@@ -885,108 +874,35 @@ Instruções para o diagnóstico:
                       </table>
                     </div>
                   </div>
-
-                  {/* Timeline das Consultas */}
-                  <div>
-                    <h4 style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: '20px', fontSize: '1.05rem' }}>
-                      Linha do Tempo de Acompanhamento
-                    </h4>
-                    <div className="timeline-container">
-                      {consultas.map((cons) => (
-                        <div key={cons.id} className="timeline-item">
-                          <div className="timeline-badge">
-                            <Calendar size={14} />
-                          </div>
-                          <div className="timeline-panel">
-                            <div className="timeline-header">
-                              <span className="timeline-date">{formatarDataBR(cons.data_consulta)}</span>
-                              {cons.proximo_retorno && (
-                                <span className="timeline-days-badge">
-                                  Próximo Retorno: {formatarDataBR(cons.proximo_retorno)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="timeline-body">
-                              {cons.observacoes ? (
-                                <p style={{ margin: 0, whiteSpace: 'pre-line' }}>{cons.observacoes}</p>
-                              ) : (
-                                <p style={{ margin: 0, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhuma observação clínica registrada.</p>
-                              )}
-                            </div>
-                            
-                            {/* Resumo das Medidas no Card */}
-                            {(cons.peso || cons.percentual_gordura || cons.cintura || cons.quadril) && (
-                              <div className="timeline-metrics-summary">
-                                {cons.peso && <span className="metric-summary-tag">Peso: {cons.peso} kg</span>}
-                                {cons.percentual_gordura && <span className="metric-summary-tag">Gordura: {cons.percentual_gordura}%</span>}
-                                {cons.cintura && <span className="metric-summary-tag">Cintura: {cons.cintura} cm</span>}
-                                {cons.quadril && <span className="metric-summary-tag">Quadril: {cons.quadril} cm</span>}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                </div>
               ) : (
-                /* Estado Vazio de Consultas */
-                <div className="info-block-card" style={{ padding: '60px 40px', textAlign: 'center', backgroundColor: '#f9fafb' }}>
-                  <div style={{ 
-                    width: '64px', 
-                    height: '64px', 
-                    backgroundColor: 'var(--primary-light)', 
-                    color: 'var(--primary-color)', 
-                    borderRadius: '16px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    margin: '0 auto 20px auto'
-                  }}>
-                    <Clock size={32} />
-                  </div>
-                  <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Nenhuma consulta registrada</h3>
-                  <p style={{ color: 'var(--text-secondary)', maxWidth: '420px', margin: '0 auto 24px auto', fontSize: '0.95rem' }}>
-                    Este paciente ainda não possui consultas ou avaliações físicas registradas. Adicione a primeira consulta para iniciar a linha do tempo de evolução física.
-                  </p>
-                  <button 
-                    onClick={() => navigate(`/pacientes/${id}/consultas/cadastro`)}
-                    className="btn-primary" 
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    <Plus size={16} />
-                    Registrar Primeira Consulta
-                  </button>
+                <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontWeight: 500 }}>Nenhuma consulta registrada ainda</p>
                 </div>
               )}
-
             </div>
           )}
 
-          {/* ABA 3: PLANO ALIMENTAR (Placeholder) */}
+          {/* ABA 3: PLANOS ALIMENTARES */}
           {activeTab === 'plano' && (
-            <div className="info-block-card animate-fade-in" style={{ padding: '60px 40px', textAlign: 'center' }}>
-              <div style={{ 
-                width: '64px', 
-                height: '64px', 
-                backgroundColor: 'var(--primary-light)', 
-                color: 'var(--primary-color)', 
-                borderRadius: '16px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                margin: '0 auto 20px auto'
-              }}>
-                <Apple size={32} />
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 800 }}>Histórico de Planos Alimentares</h3>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Acompanhe e gere novos planos de alimentação personalizados.</p>
+                </div>
+                <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.6, cursor: 'not-allowed' }} disabled>
+                  <Apple size={16} /> Gerar Plano Alimentar
+                </button>
               </div>
-              <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Plano Alimentar Prescrito</h3>
-              <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto 24px auto', fontSize: '0.95rem' }}>
-                O módulo de prescrição de dietas e planos alimentares personalizados estará disponível em breve.
-              </p>
-              <button className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', opacity: 0.6, cursor: 'not-allowed' }} disabled>
-                <Sparkles size={16} />
-                Montar Plano Alimentar
-              </button>
+
+              <div style={{ padding: '60px 40px', textAlign: 'center', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+                <Apple size={36} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+                <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-primary)', fontWeight: 700 }}>Nenhum plano alimentar gerado ainda</h4>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto' }}>
+                  O módulo de prescrição de planos e dietas estruturadas estará totalmente operacional muito em breve.
+                </p>
+              </div>
             </div>
           )}
 
@@ -995,122 +911,113 @@ Instruções para o diagnóstico:
             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div className="ia-assistant-card">
                 <div className="ia-title-section">
-                  <div className="ia-glow-icon">
-                    <Sparkles size={22} />
-                  </div>
+                  <div className="ia-glow-icon"><Sparkles size={22} /></div>
                   <h3>Assistente de Diagnóstico Clínico</h3>
                 </div>
-                
-                <p className="ia-card-description">
-                  Esta inteligência artificial analisa todos os dados da ficha clínica, anamnese e histórico de evolução do paciente para gerar um diagnóstico preliminar estruturado, avaliar hábitos, mapear riscos de saúde e recomendar diretrizes alimentares de apoio.
-                </p>
+                <p className="ia-card-description">Nossa Inteligência Artificial analisa anamnese, dados clínicos e evolução para criar diretrizes alimentares de suporte profissional.</p>
 
-                {/* Bloco de Chave de API */}
                 {!import.meta.env.VITE_GEMINI_API_KEY && (
                   <div className="ia-api-key-container">
                     <h4 className="ia-api-key-header">Chave de API do Gemini</h4>
-                    <p className="ia-api-key-help">
-                      Para utilizar o assistente de IA, é necessário configurar a sua chave de API do Gemini. 
-                      A chave será guardada localmente de forma segura apenas no seu navegador. 
-                      Você pode obter uma chave de forma 100% gratuita no{' '}
-                      <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">
-                        Google AI Studio
-                      </a>.
-                    </p>
-                    
                     <form onSubmit={salvarApiKey} className="ia-input-wrapper">
-                      <input 
-                        type="password"
-                        placeholder={apiKey ? "Chave de API configurada. Cole uma nova chave se quiser alterar..." : "Insira sua API Key do Gemini aqui..."}
-                        value={tempKey}
-                        onChange={(e) => setTempKey(e.target.value)}
-                        className="ia-input-key"
-                      />
-                      <button type="submit" className="ia-btn-key-save" disabled={!tempKey}>
-                        Salvar Chave
-                      </button>
-                      {apiKey && (
-                        <button type="button" onClick={removerApiKey} className="ia-btn-key-remove">
-                          Excluir
-                        </button>
-                      )}
+                      <input type="password" placeholder={apiKey ? "Chave configurada..." : "Chave de API do Gemini..."} value={tempKey} onChange={e => setTempKey(e.target.value)} className="ia-input-key" />
+                      <button type="submit" className="ia-btn-key-save" disabled={!tempKey}>Salvar</button>
+                      {apiKey && <button type="button" onClick={removerApiKey} className="ia-btn-key-remove">Remover</button>}
                     </form>
                   </div>
                 )}
 
-                {/* Estado sem API Key */}
-                {!apiKey && !import.meta.env.VITE_GEMINI_API_KEY ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-                    Por favor, insira e salve sua Chave de API acima para ativar a geração do diagnóstico.
+                {apiKey ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <button onClick={gerarDiagnostico} className="btn-primary" disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start' }}>
+                      {generating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                      {diagnosis ? 'Refazer Diagnóstico com IA' : 'Gerar Diagnóstico Clínico'}
+                    </button>
+                    {errorIa && <div className="error-box"><span>{errorIa}</span></div>}
                   </div>
                 ) : (
-                  /* Estado de API Key configurada */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <button 
-                        onClick={gerarDiagnostico} 
-                        className="btn-primary" 
-                        disabled={generating}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                      >
-                        {generating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                        {diagnosis ? 'Refazer Diagnóstico com IA' : 'Gerar Diagnóstico Clínico'}
-                      </button>
-                      {import.meta.env.VITE_GEMINI_API_KEY && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>
-                          ✓ Conectado via Configuração do Sistema (.env)
-                        </span>
-                      )}
-                      {!import.meta.env.VITE_GEMINI_API_KEY && apiKey && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>
-                          ✓ Conectado via Chave Salva no Navegador
-                        </span>
-                      )}
-                    </div>
-
-                    {errorIa && (
-                      <div className="error-box" style={{ marginTop: '10px' }}>
-                        <span>{errorIa}</span>
-                      </div>
-                    )}
-                  </div>
+                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Configure a sua chave de API para habilitar o assistente de IA.</p>
                 )}
 
-                {/* Loader durante a geração */}
                 {generating && (
                   <div className="ia-loading-container animate-fade-in">
-                    <div className="ia-pulse-circle">
-                      <Sparkles size={32} className="animate-spin" style={{ animationDuration: '3s' }} />
-                    </div>
-                    <div className="ia-loading-text">Analisando Anamnese e Prontuários...</div>
-                    <div className="ia-loading-subtext">
-                      Nosso assistente está cruzando dados corporais, patologias e hábitos para estruturar as diretrizes. Isso pode levar alguns segundos.
-                    </div>
+                    <Sparkles size={32} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+                    <div className="ia-loading-text">Analisando Prontuários...</div>
                   </div>
                 )}
 
-                {/* Exibição da resposta */}
                 {!generating && diagnosis && (
                   <div className="ia-response-card animate-fade-in">
-                    <div className="ia-response-actions">
-                      <button onClick={copiarDiagnostico} className="btn-secondary">
-                        Copiar Relatório
-                      </button>
-                    </div>
-                    <div className="diagnosis-markdown">
-                      {renderMarkdown(diagnosis)}
-                    </div>
+                    <button onClick={copiarDiagnostico} className="btn-secondary" style={{ alignSelf: 'flex-end', marginBottom: '12px' }}>Copiar Diagnóstico</button>
+                    <div className="diagnosis-markdown">{renderMarkdown(diagnosis)}</div>
                   </div>
                 )}
-
               </div>
             </div>
           )}
-
         </main>
-
       </div>
 
+      {/* MODAL DE NOVA CONSULTA */}
+      {showModalConsulta && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }} className="animate-fade-in">
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)', width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            {/* Header Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: '1px solid #f3f4f6' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 800, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={20} color="var(--primary-color)" /> Registrar Nova Consulta
+              </h3>
+              <button onClick={() => setShowModalConsulta(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form Modal */}
+            <form onSubmit={handleSalvarConsulta} style={{ overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {erroConsulta && <div className="error-box"><span>{erroConsulta}</span></div>}
+
+              <div className="form-grid">
+                <div className="form-group col-6">
+                  <label>Data da Consulta *</label>
+                  <input type="date" value={dataConsulta} onChange={e => setDataConsulta(e.target.value)} required />
+                </div>
+                <div className="form-group col-6">
+                  <label>Peso Atual (kg) *</label>
+                  <input type="number" step="0.1" value={pesoConsulta} placeholder="Ex: 72.5" onChange={e => setPesoConsulta(e.target.value)} required />
+                </div>
+                <div className="form-group col-4">
+                  <label>Cintura (cm) - Opcional</label>
+                  <input type="number" step="0.1" value={cinturaConsulta} placeholder="Ex: 80" onChange={e => setCinturaConsulta(e.target.value)} />
+                </div>
+                <div className="form-group col-4">
+                  <label>Quadril (cm) - Opcional</label>
+                  <input type="number" step="0.1" value={quadrilConsulta} placeholder="Ex: 95" onChange={e => setQuadrilConsulta(e.target.value)} />
+                </div>
+                <div className="form-group col-4">
+                  <label>% de Gordura - Opcional</label>
+                  <input type="number" step="0.1" value={gorduraConsulta} placeholder="Ex: 18.5" onChange={e => setGorduraConsulta(e.target.value)} />
+                </div>
+                <div className="form-group col-12">
+                  <label>Próximo Retorno - Opcional</label>
+                  <input type="date" value={retornoConsulta} onChange={e => setRetornoConsulta(e.target.value)} />
+                </div>
+                <div className="form-group col-12">
+                  <label>Observações Clínicas</label>
+                  <textarea value={obsConsulta} placeholder="Notas adicionais sobre a consulta, evolução do paciente, etc." onChange={e => setObsConsulta(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '8px' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid #f3f4f6', paddingTop: '16px' }}>
+                <button type="button" onClick={() => setShowModalConsulta(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancelar</button>
+                <button type="submit" disabled={salvandoConsulta} className="btn-primary" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {salvandoConsulta ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
+                  Salvar Consulta
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
