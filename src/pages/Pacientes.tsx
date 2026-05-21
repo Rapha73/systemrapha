@@ -113,7 +113,7 @@ const Pacientes: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }} className="animate-fade-in">
+    <div className="page-container animate-fade-in">
       
       {/* Header */}
       <div className="list-header">

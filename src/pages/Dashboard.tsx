@@ -356,9 +356,9 @@ const Dashboard: React.FC = () => {
   });
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }} className="animate-fade-in">
+    <div className="page-container animate-fade-in">
       {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <header className="page-header">
         <div>
           <h1 style={{ color: 'var(--text-primary)', letterSpacing: '-0.03em', fontWeight: 800, fontSize: '2rem', marginBottom: '6px' }}>
             {getGreeting()}, {loadingProfile ? '...' : (profile?.nome || 'Nutricionista')}!

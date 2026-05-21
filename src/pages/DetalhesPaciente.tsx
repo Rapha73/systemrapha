@@ -411,7 +411,7 @@ Instruções para o diagnóstico:
 
   if (error || !patient) {
     return (
-      <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+      <div className="page-container" style={{ maxWidth: '600px', textAlign: 'center' }}>
         <div className="error-box" style={{ justifyContent: 'center', padding: '24px', borderRadius: '12px', marginBottom: '24px' }}>
           <span>{error || 'Não foi possível carregar as informações do paciente.'}</span>
         </div>
@@ -431,7 +431,7 @@ Instruções para o diagnóstico:
     .toUpperCase();
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }} className="animate-fade-in">
+    <div className="page-container animate-fade-in">
       
       {/* Botão Voltar */}
       <button 

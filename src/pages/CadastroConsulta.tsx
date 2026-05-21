@@ -103,7 +103,7 @@ const CadastroConsulta: React.FC = () => {
 
   if (error && !patient) {
     return (
-      <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+      <div className="page-container" style={{ maxWidth: '600px', textAlign: 'center' }}>
         <div className="error-box" style={{ justifyContent: 'center', padding: '24px', borderRadius: '12px', marginBottom: '24px' }}>
           <span>{error}</span>
         </div>
@@ -115,7 +115,7 @@ const CadastroConsulta: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }} className="animate-fade-in">
+    <div className="page-container animate-fade-in" style={{ maxWidth: '800px' }}>
       
       {/* Header */}
       <header style={{ marginBottom: '32px' }}>

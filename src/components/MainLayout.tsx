@@ -43,7 +43,22 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Sidebar Fixa */}
+      {/* Header Mobile (Fixo no Topo) */}
+      <header className="mobile-header">
+        <div className="sidebar-logo" style={{ marginBottom: 0, paddingLeft: 0 }}>
+          <div className="logo-icon-wrapper">
+            <Leaf size={18} color="var(--primary-color)" />
+          </div>
+          <span className="brand-name" style={{ fontSize: '1.15rem' }}>System Rapha</span>
+        </div>
+        <div className="user-profile-summary" style={{ paddingLeft: 0 }}>
+          <div className="user-avatar" style={{ width: '32px', height: '32px' }} title={profile?.nome || 'Nutricionista'}>
+            <UserIcon size={14} color="var(--text-secondary)" />
+          </div>
+        </div>
+      </header>
+
+      {/* Sidebar Fixa (Desktop) */}
       <aside className="sidebar">
         <div>
           {/* Logo */}
@@ -74,14 +89,7 @@ const MainLayout: React.FC = () => {
         </div>
 
         {/* Prancha Alaia decorativa no espaço em branco */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          margin: '20px 0',
-          opacity: 0.9,
-          pointerEvents: 'none'
-        }}>
+        <div className="sidebar-decor">
           <img 
             src="/alaia_board.png" 
             alt="Prancha Alaia" 
@@ -113,6 +121,28 @@ const MainLayout: React.FC = () => {
           </button>
         </div>
       </aside>
+
+      {/* Navegação Mobile (Barra Inferior Fixa) */}
+      <nav className="mobile-bottom-nav">
+        <NavLink 
+          to="/dashboard" 
+          className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+        >
+          <LayoutDashboard size={20} />
+          <span>Dashboard</span>
+        </NavLink>
+        <NavLink 
+          to="/pacientes" 
+          className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Users size={20} />
+          <span>Pacientes</span>
+        </NavLink>
+        <button onClick={handleLogout} className="mobile-nav-item-btn" title="Sair">
+          <LogOut size={20} color="var(--error-color)" />
+          <span style={{ color: 'var(--error-color)' }}>Sair</span>
+        </button>
+      </nav>
 
       {/* Conteúdo Principal */}
       <main className="main-content">

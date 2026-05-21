@@ -1572,6 +1572,278 @@ select:focus {
   color: #065f46;
 }
 
+/* ==========================================
+   Design Responsivo e Suporte Mobile
+   ========================================== */
+
+/* Classes de Layout Gerais */
+.page-container {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  transition: padding 0.2s ease;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  gap: 16px;
+}
+
+.sidebar-decor {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* Header e Navigation Mobile (Ocultos por padrão no desktop) */
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.6);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-top: 1px solid rgba(229, 231, 235, 0.6);
+  padding: 8px 12px 10px 12px;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 100;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: var(--transition);
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.mobile-nav-item.active {
+  color: var(--primary-color);
+  background-color: var(--primary-light);
+}
+
+.mobile-nav-item-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: var(--transition);
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.mobile-nav-item-btn:hover {
+  background-color: #fef2f2;
+}
+
+/* Media Query para Celulares e Tablets */
+@media (max-width: 768px) {
+  /* Layout estrutural */
+  .sidebar {
+    display: none !important;
+  }
+  
+  .sidebar-decor {
+    display: none !important;
+  }
+
+  .mobile-header {
+    display: flex;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    padding-top: 76px !important; /* Altura do header mobile */
+    padding-bottom: 76px !important; /* Altura do bottom nav */
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Padding responsivo para contêiner de páginas */
+  .page-container {
+    padding: 16px 8px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .page-header h1 {
+    font-size: 1.6rem !important;
+  }
+
+  .page-header div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .weather-widget {
+    flex-grow: 1;
+    justify-content: center;
+  }
+
+  .refresh-btn {
+    flex-grow: 1;
+    justify-content: center;
+  }
+
+  /* Abas Deslizantes nos Detalhes do Paciente */
+  .details-tabs-header {
+    overflow-x: auto;
+    white-space: nowrap;
+    gap: 16px;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .details-tabs-header::-webkit-scrollbar {
+    display: none; /* Safari e Chrome */
+  }
+
+  .details-tab-btn {
+    padding: 8px 4px;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .details-tab-btn.active::after {
+    height: 2px;
+  }
+
+  /* Ajustes gerais de grid */
+  .dashboard-grid {
+    gap: 16px;
+  }
+
+  .info-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .patients-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .form-grid {
+    gap: 16px;
+  }
+
+  .col-8, .col-6, .col-4, .col-3 {
+    grid-column: span 12 !important;
+  }
+
+  /* Botões e Formulários */
+  .form-actions-row {
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+  }
+
+  .form-actions-row button {
+    width: 100%;
+  }
+
+  .list-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .search-bar-wrapper {
+    max-width: 100%;
+  }
+
+  .list-card {
+    padding: 20px;
+  }
+
+  .ia-assistant-card {
+    padding: 20px;
+  }
+
+  .ia-response-card {
+    padding: 20px;
+  }
+}
+
+/* Ajustes em telas muito pequenas (ex: iPhone SE) */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 32px 20px;
+  }
+
+  .brand-name {
+    font-size: 1.1rem !important;
+  }
+
+  .ia-input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ia-input-wrapper input {
+    width: 100%;
+  }
+
+  .ia-input-wrapper button {
+    width: 100%;
+  }
+}
+
+
 
 
 

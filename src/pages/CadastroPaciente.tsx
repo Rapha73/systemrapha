@@ -330,7 +330,7 @@ const CadastroPaciente: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }} className="animate-fade-in">
+    <div className="page-container animate-fade-in" style={{ maxWidth: '900px' }}>
       {/* Header */}
       <header style={{ marginBottom: '32px' }}>
         <button 
