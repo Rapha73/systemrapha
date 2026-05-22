@@ -1843,7 +1843,328 @@ select:focus {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   PLANO ALIMENTAR — Estilos
+   ══════════════════════════════════════════════════════════════ */
 
+/* ── Empty State ─────────────────────────────────────────────── */
+.pa-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+  background-color: #f9fafb;
+  border-radius: 16px;
+  border: 1px dashed var(--border-color);
+}
 
+.pa-empty-state .pa-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
 
+.pa-empty-state h4 {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.pa-empty-state p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  max-width: 380px;
+}
+
+/* ── Grid de Histórico ───────────────────────────────────────── */
+.pa-historico-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pa-historico-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: var(--transition);
+}
+
+.pa-historico-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
+  transform: translateY(-1px);
+}
+
+.pa-historico-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pa-historico-icon {
+  width: 44px;
+  height: 44px;
+  background-color: var(--primary-light);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.pa-historico-label {
+  display: block;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.pa-historico-date {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pa-historico-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pa-btn-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--error-color);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.pa-btn-delete:hover {
+  background-color: #fef2f2;
+}
+
+/* ── Botão Voltar ────────────────────────────────────────────── */
+.pa-btn-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.pa-btn-back:hover {
+  background-color: #f3f4f6;
+  border-color: var(--text-secondary);
+}
+
+/* ── Abas dos Dias da Semana ─────────────────────────────────── */
+.pa-dias-tabs {
+  display: flex;
+  gap: 4px;
+  background-color: #f3f4f6;
+  padding: 5px;
+  border-radius: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.pa-dia-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border: none;
+  background-color: transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: var(--transition);
+  min-width: 70px;
+  position: relative;
+}
+
+.pa-dia-tab:hover {
+  background-color: rgba(255,255,255,0.7);
+}
+
+.pa-dia-tab.active {
+  background-color: var(--card-bg);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.pa-dia-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background-color: var(--primary-color);
+  border-radius: 2px;
+}
+
+.pa-dia-tab-emoji {
+  font-size: 1.1rem;
+}
+
+.pa-dia-tab-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+
+.pa-dia-tab.active .pa-dia-tab-label {
+  color: var(--primary-color);
+}
+
+/* ── Container de Refeições ──────────────────────────────────── */
+.pa-refeicoes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Card de Refeição ────────────────────────────────────────── */
+.pa-refeicao-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  transition: var(--transition);
+}
+
+.pa-refeicao-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.pa-refeicao-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.pa-refeicao-emoji {
+  font-size: 1.35rem;
+}
+
+.pa-refeicao-titulo {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+/* ── Inputs de Alimento ──────────────────────────────────────── */
+.pa-refeicao-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pa-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: #fafafa;
+  transition: var(--transition);
+}
+
+.pa-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+.pa-input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+/* ── Ações do Formulário ─────────────────────────────────────── */
+.pa-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
+  padding-top: 20px;
+  margin-top: 4px;
+}
+
+/* ── Responsivo ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pa-historico-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .pa-historico-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .pa-dias-tabs {
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .pa-dia-tab {
+    min-width: 55px;
+    padding: 8px 4px;
+  }
+
+  .pa-dia-tab-emoji {
+    font-size: 0.95rem;
+  }
+
+  .pa-dia-tab-label {
+    font-size: 0.7rem;
+  }
+
+  .pa-refeicao-card {
+    padding: 16px;
+  }
+
+  .pa-form-actions {
+    flex-direction: column;
+  }
+
+  .pa-form-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
 

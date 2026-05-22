@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import PlanoAlimentar from '../components/PlanoAlimentar';
 import { 
   ArrowLeft, 
   Phone, 
@@ -10,7 +11,6 @@ import {
   Plus, 
   Loader2, 
   Sparkles,
-  Apple,
   TrendingDown,
   TrendingUp,
   Save,
@@ -884,26 +884,8 @@ const DetalhesPaciente: React.FC = () => {
           )}
 
           {/* ABA 3: PLANOS ALIMENTARES */}
-          {activeTab === 'plano' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 800 }}>Histórico de Planos Alimentares</h3>
-                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Acompanhe e gere novos planos de alimentação personalizados.</p>
-                </div>
-                <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.6, cursor: 'not-allowed' }} disabled>
-                  <Apple size={16} /> Gerar Plano Alimentar
-                </button>
-              </div>
-
-              <div style={{ padding: '60px 40px', textAlign: 'center', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
-                <Apple size={36} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
-                <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-primary)', fontWeight: 700 }}>Nenhum plano alimentar gerado ainda</h4>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto' }}>
-                  O módulo de prescrição de planos e dietas estruturadas estará totalmente operacional muito em breve.
-                </p>
-              </div>
-            </div>
+          {activeTab === 'plano' && id && (
+            <PlanoAlimentar pacienteId={id} />
           )}
 
           {/* ABA 4: ASSISTENTE DE IA */}
